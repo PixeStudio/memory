@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Visual Spatial Memory – 27 pól</title>
+
+<style>
+:root{
+  --bg:#0b0f14;
+  --panel:#121926;
+  --text:#e7eefc;
+  --muted:#9aa7c7;
+  --dot:#6aa7ff;
+  --ok:#3ee58f;
+  --bad:#ff4d4d;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  background:#0b0f14;
+  color:var(--text);
+  font-family:system-ui, sans-serif;
+}
+
+.app{
+  width:min(900px,95%);
+  background:var(--panel);
+  padding:20px;
+  border-radius:16px;
+}
+
+header{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:16px;
+}
+
+.stats{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.stat{
+  padding:6px 10px;
+  border:1px solid #2a3550;
+  border-radius:999px;
+  font-size:13px;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(9,1fr);
+  gap:12px;
+  margin:20px 0;
+}
+
+.cell{
+  aspect-ratio:1/1;
+  border-radius:50%;
+  border:1px solid #2a3550;
+  background:rgba(255,255,255,.02);
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+}
+
+.cell:hover{background:rgba(255,255,255,.05)}
+
+.dot{
+  width:45%;
+  height:45%;
+  border-radius:50%;
+  background:var(--dot);
+  opacity:0;
+}
+
+.cell.target .dot{opacity:1}
+.cell.pick .dot{opacity:.8}
+
+.cell.correct{border-color:var(--ok)}
+.cell.wrong{border-color:var(--bad)}
+
+.controls{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+button{
+  padding:10px 14px;
+  border-radius:10px;
+  border:1px solid #2a3550;
+  background:#1a233a;
+  color:var(--text);
+  cursor:pointer;
+}
+
+button:disabled{opacity:.5}
+
+.message{
+  min-height:20px;
+  font-size:14px;
+  color:var(--muted);
+}
+.message.ok{color:var(--ok)}
+.message.bad{color:var(--bad)}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <header>
+    <div>
+      <strong>Pamięć wzrokowo-przestrzenna</strong><br>
+      27 pól (3×9)
+    </div>
+    <div class="stats">
+      <div class="stat">Poziom: <span id="lvl">1</span></div>
+      <div class="stat">Punkty: <span id="dots">5</span></div>
+      <div class="stat">Streak: <span id="streak">0</span></div>
+    </div>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="controls">
+    <button id="start">Start / Next</button>
+    <button id="check" disabled>Sprawdź</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <div class="message" id="msg"></div>
+</div>
+
+<script>
+const CELLS = 27;
+const COLS = 9;
+
+let level = 1;
+let dotsCount = 5;
+let streak = 0;
+let phase = "idle";
+
+let targets = new Set();
+let picks = new Set();
+
+const grid = document.getElementById("grid");
+const msg = document.getElementById("msg");
+const lvlEl = document.getElementById("lvl");
+const dotsEl = document.getElementById("dots");
+const streakEl = document.getElementById("streak");
+
+const btnStart = document.getElementById("start");
+const btnCheck = document.getElementById("check");
+const btnReset = document.getElementById("reset");
+
+function buildGrid(){
+  grid.innerHTML="";
+  for(let i=0;i<CELLS;i++){
+    const b=document.createElement("button");
+    b.className="cell";
+    b.dataset.i=i;
+    b.innerHTML=`<div class="dot"></div>`;
+    b.onclick=()=>pick(i);
+    grid.appendChild(b);
+  }
+}
+
+function randomSet(n){
+  const s=new Set();
+  while(s.size<n)s.add(Math.floor(Math.random()*CELLS));
+  return s;
+}
+
+function showTargets(){
+  document.querySelectorAll(".cell").forEach(c=>{
+    if(targets.has(+c.dataset.i))c.classList.add("target");
+  });
+}
+
+function clearVisual(){
+  document.querySelectorAll(".cell").forEach(c=>{
+    c.className="cell";
+  });
+}
+
+function start(){
+  if(phase==="show")return;
+  phase="show";
+  picks.clear();
+  clearVisual();
+  targets=randomSet(dotsCount);
+  showTargets();
+  btnStart.disabled=true;
+  btnCheck.disabled=true;
+  msg.textContent="Zapamiętaj…";
+
+  setTimeout(()=>{
+    clearVisual();
+    phase="input";
+    btnCheck.disabled=false;
+    msg.textContent="Odtwórz układ";
+  },900);
+}
+
+function pick(i){
+  if(phase!=="input")return;
+  if(picks.has(i))picks.delete(i);
+  else picks.add(i);
+  document.querySelectorAll(".cell")[i].classList.toggle("pick");
+}
+
+function check(){
+  if(phase!=="input")return;
+  phase="result";
+
+  let errors=0;
+  document.querySelectorAll(".cell").forEach(c=>{
+    const i=+c.dataset.i;
+    if(picks.has(i)&&targets.has(i))c.classList.add("correct");
+    else if(picks.has(i)||targets.has(i)){
+      c.classList.add("wrong");
+      errors++;
+    }
+  });
+
+  if(errors===0 && picks.size===targets.size){
+    msg.textContent="✔ Idealnie";
+    msg.className="message ok";
+    streak++;
+    level++;
+    dotsCount++;
+  }else{
+    msg.textContent=`✖ Błędy: ${errors}`;
+    msg.className="message bad";
+    streak=0;
+    if(dotsCount>5)dotsCount--;
+  }
+
+  btnStart.disabled=false;
+  btnCheck.disabled=true;
+  update();
+}
+
+function reset(){
+  level=1;
+  dotsCount=5;
+  streak=0;
+  phase="idle";
+  clearVisual();
+  update();
+  msg.textContent="Reset";
+}
+
+function update(){
+  lvlEl.textContent=level;
+  dotsEl.textContent=dotsCount;
+  streakEl.textContent=streak;
+}
+
+btnStart.onclick=start;
+btnCheck.onclick=check;
+btnReset.onclick=reset;
+
+buildGrid();
+update();
+</script>
+</body>
+</html>
